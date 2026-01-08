@@ -13,7 +13,7 @@
 - **通配符匹配**：`owner/*` 统计该 owner 下所有仓库
 - **精确指定**：`owner/repo` 统计特定仓库
 - **混合批量**：一次性指定多个组织、用户或仓库
-- **智能默认**：默认统计当前仓库所在用户或组织下的所有公开仓库贡献者
+- **自动检测**：留空则自动统计当前仓库所属组织/用户的所有公开仓库
 
 ### 📊 多格式输出
 1. **JSON 数据**（`contributors.json`）
@@ -65,29 +65,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Collect contributors
+      - name: Collect and commit contributors
         uses: Sunrisepeak/all-contributors@main
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Commit results
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add contributors.*
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update contributors" && git push)
 ```
+
+**说明**：
+- 默认自动检测当前仓库所属组织/用户的所有公开仓库
+- 生成 `contributors.json`、`contributors.png`、`contributors.html` 三个文件
+- 自动提交并推送更改
 
 #### 指定多个目标
 ```yaml
       - uses: Sunrisepeak/all-contributors@main
         with:
-          token: ${{ secrets.MY_PAT }}
           targets: |
             my-org/*
             alice/*
             team/tool
             bob/project
+```
+
+#### 禁用自动提交（仅生成文件）
+```yaml
+      - uses: Sunrisepeak/all-contributors@main
+        with:
+          auto_commit: "false"
+      
+      - name: Custom commit logic
+        run: |
+          git config user.name "custom-bot"
+          git config user.email "bot@example.com"
+          git add contributors.*
+          git commit -m "Custom commit message"
+          git push
 ```
 
 **说明**：
@@ -126,13 +136,15 @@ python main.py --token ghp_xxx 'myorg/*' alice/repo bob/project
 ### Inputs（GitHub Action）
 
 | 参数 | 默认值 | 说明 |
-|------|------|--------|------|
-| `token` | `GITHUB_TOKEN` | GitHub 访问令牌。建议使用 PAT；公开仓库可用 `GITHUB_TOKEN` |
-| `targets` | 自动检测 | 目标列表，格式：`owner/*` 或 `owner/repo`，多个用空格/逗号/换行分隔 |
-| `out_file` | `contributors.json` | 输出 JSON 文件路径 |
+|------|--------|------|
+| `targets` | 自动检测 | 目标列表，格式：`owner/*` 或 `owner/repo`，多个用空格/逗号/换行分隔。留空则自动检测当前仓库所属组织/用户 |
+| `token` | `${{ github.token }}` | GitHub 访问令牌，自动使用当前仓库的 GITHUB_TOKEN。大型组织建议使用 PAT |
 | `include_anonymous` | `true` | 是否包含匿名贡献者 |
 | `skip_archived` | `true` | 是否跳过已归档仓库 |
 | `per_repo_delay_ms` | `150` | 每个仓库请求间隔（毫秒），避免速率限制 |
+| `auto_commit` | `true` | 自动提交并推送更改到仓库（需要 `contents: write` 权限） |
+
+> **注意**：输出文件固定为 `contributors.json`、`contributors.png`、`contributors.html`，无需配置。
 
 ### 环境变量（本地运行）
 

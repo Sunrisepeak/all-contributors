@@ -15,10 +15,6 @@ inputs:
     description: "GitHub token. Defaults to GITHUB_TOKEN if not provided. PAT recommended for large orgs."
     required: false
     default: ${{ github.token }}
-  out_file:
-    description: "Output JSON file path in the caller repo"
-    required: false
-    default: "contributors.json"
   include_anonymous:
     description: "Include anonymous contributors (no login)"
     required: false
@@ -31,6 +27,10 @@ inputs:
     description: "Delay between repos to reduce rate limiting"
     required: false
     default: "150"
+  auto_commit:
+    description: "Automatically commit and push changes to contributors files"
+    required: false
+    default: "true"
 
 outputs:
   updated:
@@ -54,29 +54,29 @@ runs:
       env:
         TARGETS: ${{ inputs.targets }}
         GH_TOKEN: ${{ inputs.token }}
-        OUT_FILE: ${{ inputs.out_file }}
         INCLUDE_ANONYMOUS: ${{ inputs.include_anonymous }}
         SKIP_ARCHIVED: ${{ inputs.skip_archived }}
         PER_REPO_DELAY_MS: ${{ inputs.per_repo_delay_ms }}
       run: |
         cd "${{ github.action_path }}"
-        if [ -n "${TARGETS}" ]; then
-          echo "Using user-provided targets: ${TARGETS}"
-          export TARGETS
-        else
-          echo "No targets provided; main.py will auto-detect or apply repo defaults"
-        fi
         python main.py
 
     - name: Detect changes (best-effort)
       id: detect
       shell: bash
-      env:
-        OUT_FILE: ${{ inputs.out_file }}
       run: |
-        if git status --porcelain -- "${OUT_FILE}" contributors.png contributors.html | grep .; then
-        # Check all generated files: JSON, PNG, HTML
+        if git status --porcelain -- contributors.json contributors.png contributors.html | grep .; then
           echo "updated=true" >> "$GITHUB_OUTPUT"
         else
           echo "updated=false" >> "$GITHUB_OUTPUT"
         fi
+
+    - name: Auto-commit changes
+      if: inputs.auto_commit == 'true' && steps.detect.outputs.updated == 'true'
+      shell: bash
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add contributors.json contributors.png contributors.html
+        git commit -m "chore: update contributors"
+        git push
